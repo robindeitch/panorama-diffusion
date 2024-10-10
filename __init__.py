@@ -7,7 +7,6 @@ bl_info = {
     "blender": (4, 1, 0),
     "category": "3D View",
     "location": "View3D > Sidebar > Pano tab",
-    "warning": "Requires installation of dependencies"
 }
 
 from random import randint
@@ -34,7 +33,7 @@ class RenderDiffusionPanoramaOp(bpy.types.Operator):
 
     def execute(self, context):
         output_file = context.scene.pd_texture_file
-        prompt = "A grassy hill on a beautiful day"
+        prompt = context.scene.pd_prompt
         negative_prompt = "bad quality, jpeg artifacts"
         seed = randint(1, 2147483647)
         steps = 15
@@ -84,6 +83,7 @@ class PanoramaDiffusionPanel(bpy.types.Panel):
 
         layout.prop(context.scene, "pd_model_file")
         layout.prop(context.scene, "pd_texture_file")
+        layout.prop(context.scene, "pd_prompt")
 
         layout.operator("panorama_diffusion.init", text="Load models", icon="MONKEY")
         layout.operator("panorama_diffusion.render", text="Render")
@@ -91,6 +91,7 @@ class PanoramaDiffusionPanel(bpy.types.Panel):
 
 def register():
     sdxl.start()
+    bpy.types.Scene.pd_prompt = bpy.props.StringProperty(name="Prompt")
     bpy.types.Scene.pd_model_file = bpy.props.StringProperty(subtype="FILE_PATH", name="Model file")
     bpy.types.Scene.pd_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Texture file")
 
