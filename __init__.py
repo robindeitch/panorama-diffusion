@@ -12,6 +12,7 @@ bl_info = {
 
 from random import randint
 import bpy
+import os
 from .sdxl_client import SDXLClient
 
 sdxl = SDXLClient()
@@ -32,6 +33,7 @@ class RenderDiffusionPanoramaOp(bpy.types.Operator):
     bl_label = "panorama_diffusion.render"
 
     def execute(self, context):
+        output_file = context.scene.pd_texture_file
         prompt = "A grassy hill on a beautiful day"
         negative_prompt = "bad quality, jpeg artifacts"
         seed = randint(1, 2147483647)
@@ -42,10 +44,15 @@ class RenderDiffusionPanoramaOp(bpy.types.Operator):
         depth_image_file = "D:/code/diffusion-server-files/input-depth.png"
 
         def callback(id:int, image_file:str):
-            print(f"Finished generating id {id} at {image_file}")
+            image_file = os.path.normpath(bpy.path.abspath(image_file))
+            print(f"Finished generating id {id} at {image_file}, reloading")
+            for img in bpy.data.images :
+                this_image_file = os.path.normpath(bpy.path.abspath(img.filepath))
+                if img.source == 'FILE' and this_image_file == image_file:
+                    img.reload()
 
         id = sdxl.queue_panorama(
-            "D:/code/diffusion-server-files/temp.png",
+            output_file,
             callback,
             prompt,
             negative_prompt,
@@ -76,19 +83,23 @@ class PanoramaDiffusionPanel(bpy.types.Panel):
         layout = self.layout
 
         layout.prop(context.scene, "pd_model_file")
+        layout.prop(context.scene, "pd_texture_file")
 
         layout.operator("panorama_diffusion.init", text="Load models", icon="MONKEY")
         layout.operator("panorama_diffusion.render", text="Render")
 
 
 def register():
-    bpy.types.Scene.pd_model_file = bpy.props.StringProperty(name="Model file")
+    sdxl.start()
+    bpy.types.Scene.pd_model_file = bpy.props.StringProperty(subtype="FILE_PATH", name="Model file")
+    bpy.types.Scene.pd_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Texture file")
 
     bpy.utils.register_class(RenderDiffusionPanoramaOp)
     bpy.utils.register_class(InitDiffusionPanoramaOp)
     bpy.utils.register_class(PanoramaDiffusionPanel)
 
 def unregister():
+    sdxl.stop()
     bpy.utils.unregister_class(PanoramaDiffusionPanel)
     bpy.utils.unregister_class(InitDiffusionPanoramaOp)
     bpy.utils.unregister_class(RenderDiffusionPanoramaOp)
