@@ -35,25 +35,42 @@ class RenderDiffusionPanoramaOp(bpy.types.Operator):
     bl_label = "panorama_diffusion.render"
 
     def execute(self, context):
+
+        # Setup prompt
         output_image_file = clean_path(context.scene.pd_output_texture_file)
         prompt = context.scene.pd_prompt
         negative_prompt = "bad quality, jpeg artifacts"
-        seed = randint(1, 2147483647)
+        seed = context.scene.pd_seed
         steps = 15
         prompt_guidance=7.5
         depth_image_influence = 0.85
         lora_overall_influence = 1.0
         depth_image_file = clean_path(context.scene.pd_depth_texture_file)
 
+        # Render from the correct camera
+        temp_cam = context.scene.camera
+        context.scene.camera = context.scene.pd_render_cam
+        bpy.ops.render.render(write_still = True)
+        context.scene.camera = temp_cam
+
+        # Reload depth map
+        for img in bpy.data.images :
+            this_image_file = clean_path(img.filepath)
+            if img.source == 'FILE' and this_image_file == depth_image_file:
+                img.reload()
+
+        # Define callback
         def callback(id:int, result_image_file:str):
+            
             result_image_file = clean_path(result_image_file)
             print(f"Finished generating id {id} at {result_image_file}, reloading")
+
             for img in bpy.data.images :
                 this_image_file = clean_path(img.filepath)
-                if img.source == 'FILE' and this_image_file == result_image_file:
+                if img.source == 'FILE' and (this_image_file == result_image_file or this_image_file == depth_image_file):
                     img.reload()
 
-        print(f"{output_image_file} / {depth_image_file}")
+        # Queue prompt
         id = sdxl.queue_panorama(
             output_image_file,
             callback,
@@ -91,15 +108,21 @@ class PanoramaDiffusionPanel(bpy.types.Panel):
         layout.prop(context.scene, "pd_prompt")
         layout.prop(context.scene, "pd_depth_texture_file")
         layout.prop(context.scene, "pd_output_texture_file")
+        layout.prop(context.scene, "pd_render_cam")
+        layout.prop(context.scene, "pd_seed")
         layout.operator("panorama_diffusion.render", text="Render", icon="RENDER_RESULT")
 
+# https://docs.blender.org/api/current/bpy.props.html
+# https://wilkinson.graphics/blender-icons/
 
 def register():
     sdxl.start()
+    bpy.types.Scene.pd_seed = bpy.props.IntProperty(name="Seed")
     bpy.types.Scene.pd_prompt = bpy.props.StringProperty(name="Prompt")
     bpy.types.Scene.pd_model_file = bpy.props.StringProperty(subtype="FILE_PATH", name="Model file")
     bpy.types.Scene.pd_depth_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Depth texture file")
     bpy.types.Scene.pd_output_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Output texture file")
+    bpy.types.Scene.pd_render_cam = bpy.props.PointerProperty(type=bpy.types.Object)
 
     bpy.utils.register_class(RenderDiffusionPanoramaOp)
     bpy.utils.register_class(InitDiffusionPanoramaOp)
