@@ -16,6 +16,9 @@ from .sdxl_client import SDXLClient
 
 sdxl = SDXLClient()
 
+def clean_path(file:str) -> str:
+    return os.path.normpath(bpy.path.abspath(file))
+
 class InitDiffusionPanoramaOp(bpy.types.Operator):
     bl_idname = "panorama_diffusion.init"
     bl_label = "panorama_diffusion.init"
@@ -32,7 +35,7 @@ class RenderDiffusionPanoramaOp(bpy.types.Operator):
     bl_label = "panorama_diffusion.render"
 
     def execute(self, context):
-        output_file = context.scene.pd_texture_file
+        output_image_file = clean_path(context.scene.pd_output_texture_file)
         prompt = context.scene.pd_prompt
         negative_prompt = "bad quality, jpeg artifacts"
         seed = randint(1, 2147483647)
@@ -40,18 +43,19 @@ class RenderDiffusionPanoramaOp(bpy.types.Operator):
         prompt_guidance=7.5
         depth_image_influence = 0.85
         lora_overall_influence = 1.0
-        depth_image_file = "D:/code/diffusion-server-files/input-depth.png"
+        depth_image_file = clean_path(context.scene.pd_depth_texture_file)
 
-        def callback(id:int, image_file:str):
-            image_file = os.path.normpath(bpy.path.abspath(image_file))
-            print(f"Finished generating id {id} at {image_file}, reloading")
+        def callback(id:int, result_image_file:str):
+            result_image_file = clean_path(result_image_file)
+            print(f"Finished generating id {id} at {result_image_file}, reloading")
             for img in bpy.data.images :
-                this_image_file = os.path.normpath(bpy.path.abspath(img.filepath))
-                if img.source == 'FILE' and this_image_file == image_file:
+                this_image_file = clean_path(img.filepath)
+                if img.source == 'FILE' and this_image_file == result_image_file:
                     img.reload()
 
+        print(f"{output_image_file} / {depth_image_file}")
         id = sdxl.queue_panorama(
-            output_file,
+            output_image_file,
             callback,
             prompt,
             negative_prompt,
@@ -82,18 +86,20 @@ class PanoramaDiffusionPanel(bpy.types.Panel):
         layout = self.layout
 
         layout.prop(context.scene, "pd_model_file")
-        layout.prop(context.scene, "pd_texture_file")
-        layout.prop(context.scene, "pd_prompt")
+        layout.operator("panorama_diffusion.init", text="Load models", icon="LIBRARY_DATA_DIRECT")
 
-        layout.operator("panorama_diffusion.init", text="Load models", icon="MONKEY")
-        layout.operator("panorama_diffusion.render", text="Render")
+        layout.prop(context.scene, "pd_prompt")
+        layout.prop(context.scene, "pd_depth_texture_file")
+        layout.prop(context.scene, "pd_output_texture_file")
+        layout.operator("panorama_diffusion.render", text="Render", icon="RENDER_RESULT")
 
 
 def register():
     sdxl.start()
     bpy.types.Scene.pd_prompt = bpy.props.StringProperty(name="Prompt")
     bpy.types.Scene.pd_model_file = bpy.props.StringProperty(subtype="FILE_PATH", name="Model file")
-    bpy.types.Scene.pd_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Texture file")
+    bpy.types.Scene.pd_depth_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Depth texture file")
+    bpy.types.Scene.pd_output_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Output texture file")
 
     bpy.utils.register_class(RenderDiffusionPanoramaOp)
     bpy.utils.register_class(InitDiffusionPanoramaOp)
