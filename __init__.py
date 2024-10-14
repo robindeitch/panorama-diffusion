@@ -41,8 +41,6 @@ class InitDiffusionPanoramaOp(bpy.types.Operator):
         loras = [(clean_path(lora.model_file), lora.keywords) for lora in valid_loras ]
         lora_weights = [lora.weight for lora in valid_loras]
 
-        print(loras)
-
         if len(loras) > 0:
             sdxl.init(model_file, loras, lora_weights)
         else:
@@ -91,7 +89,7 @@ class RenderDiffusionPanoramaOp(bpy.types.Operator):
 
         # Setup prompt
         output_image_file = clean_path(context.scene.pd_output_texture_file)
-        prompt = context.scene.pd_prompt
+        prompt = context.scene.pd_prompt.as_string()
         negative_prompt = "bad quality, jpeg artifacts"
         seed = context.scene.pd_seed
         steps = 15
@@ -202,7 +200,7 @@ def register():
 
     sdxl.start()
     bpy.types.Scene.pd_seed = bpy.props.IntProperty(name="Seed")
-    bpy.types.Scene.pd_prompt = bpy.props.StringProperty(name="Prompt")
+    bpy.types.Scene.pd_prompt = bpy.props.PointerProperty(type=bpy.types.Text, name="Prompt")
     bpy.types.Scene.pd_model_file = bpy.props.StringProperty(subtype="FILE_PATH", name="Model file")
     bpy.types.Scene.pd_depth_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Depth texture file")
     bpy.types.Scene.pd_output_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Output texture file")
