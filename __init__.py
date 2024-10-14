@@ -1,3 +1,4 @@
+import os
 
 # Panel basics : https://www.youtube.com/watch?v=0_QskeU8CPo
 
@@ -18,7 +19,7 @@ class LoRAInfo(bpy.types.PropertyGroup):
     bl_label = "LoRA info"
     bl_idname = "panorama_diffusion.lorainfo"
 
-    enabled: bpy.props.BoolProperty(name="Enabled", default=True)
+    enabled: bpy.props.BoolProperty(name="x", default=True)
     model_file: bpy.props.StringProperty(subtype="FILE_PATH", name="Model file")
     keywords: bpy.props.StringProperty(name="Keywords")
     weight: bpy.props.FloatProperty(name="Weight")
@@ -36,19 +37,25 @@ class InitDiffusionPanoramaOp(bpy.types.Operator):
         model_file = context.scene.pd_model_file
         print(f"Loading model {model_file}")
 
-        lora = context.scene.pd_loras[0]
-        sdxl.init(model_file, [( clean_path(lora.model_file), lora.keywords )], [lora.weight])
+        valid_loras = [lora for lora in context.scene.pd_loras if lora.enabled and os.path.exists(clean_path(lora.model_file))]
+        loras = [(clean_path(lora.model_file), lora.keywords) for lora in valid_loras ]
+        lora_weights = [lora.weight for lora in valid_loras]
+
+        print(loras)
+
+        if len(loras) > 0:
+            sdxl.init(model_file, loras, lora_weights)
+        else:
+            sdxl.init(model_file)
 
         return {"FINISHED"}
 
 class LoraList(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        col1 = layout.column()
-        col1.prop(item, "enabled")
-        col1.prop(item, "weight")
-        col2 = layout.column()
-        col2.prop(item, "model_file")
-        col2.prop(item, "keywords")
+        _, tail = os.path.split(clean_path(item.model_file))
+        label = f"({round(item.weight, 2)}) {tail}"
+        layout.prop(item, "enabled", text='')
+        layout.label(text = label)
 
 class LoraAddOp(bpy.types.Operator):
     bl_idname = "panorama_diffusion.lora_add"
@@ -152,14 +159,22 @@ class PanoramaDiffusionPanel(bpy.types.Panel):
         layout.prop(context.scene, "pd_model_file")
 
         # LoRAs
-        lora_row = layout.row()
+        lora_row = layout.split(factor=0.175)
         label_col = lora_row.column()
         label_col.label(text="LoRAs:")
         lora_settings_col = lora_row.column()
         lora_settings_col.template_list("LoraList", "", context.scene, "pd_loras", context.scene, "pd_loras_index")
-        row = lora_settings_col.row()
+
+        if context.scene.pd_loras_index > -1 and len(context.scene.pd_loras) > 0:
+            lora = context.scene.pd_loras[context.scene.pd_loras_index]
+            box = lora_settings_col.box()
+            box.row().prop(lora, "weight" )
+            box.row().prop(lora, "model_file" )
+            box.row().prop(lora, "keywords" )
+
+        row = lora_settings_col.split()
         col1 = row.column()
-        col2 = row.column(align=True)
+        col2 = row.column()
         col1.operator(LoraAddOp.bl_idname, text="Add", icon="ADD")
         col2.operator(LoraRemoveOp.bl_idname, text="Remove", icon="REMOVE")
 
