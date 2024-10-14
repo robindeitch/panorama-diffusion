@@ -14,6 +14,15 @@ import bpy
 import os
 from .sdxl_client import SDXLClient
 
+class LoRAInfo(bpy.types.PropertyGroup):
+    bl_label = "LoRA info"
+    bl_idname = "panorama_diffusion.lorainfo"
+
+    enabled: bpy.props.BoolProperty(name="Enabled", default=True)
+    model_file: bpy.props.StringProperty(subtype="FILE_PATH", name="Model file")
+    keywords: bpy.props.StringProperty(name="Keywords")
+    weight: bpy.props.FloatProperty(name="Weight")
+
 sdxl = SDXLClient()
 
 def clean_path(file:str) -> str:
@@ -26,9 +35,46 @@ class InitDiffusionPanoramaOp(bpy.types.Operator):
     def execute(self, context):
         model_file = context.scene.pd_model_file
         print(f"Loading model {model_file}")
-        sdxl.init(model_file)
+
+        lora = context.scene.pd_loras[0]
+        sdxl.init(model_file, [( clean_path(lora.model_file), lora.keywords )], [lora.weight])
+
         return {"FINISHED"}
 
+class LoraList(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        col1 = layout.column()
+        col1.prop(item, "enabled")
+        col1.prop(item, "weight")
+        col2 = layout.column()
+        col2.prop(item, "model_file")
+        col2.prop(item, "keywords")
+
+class LoraAddOp(bpy.types.Operator):
+    bl_idname = "panorama_diffusion.lora_add"
+    bl_label = "Add"
+    
+    def execute(self, context):
+        s = context.scene
+        item = s.pd_loras.add()
+        #item.name = ...
+        return {'FINISHED'}
+
+class LoraRemoveOp(bpy.types.Operator):
+    bl_idname = "panorama_diffusion.lora_remove"
+    bl_label = "Remove"
+    
+    @classmethod
+    def poll(cls, context):
+        s = context.scene
+        return len(s.pd_loras) > s.pd_loras_index >= 0
+    
+    def execute(self, context):
+        s = context.scene
+        s.pd_loras.remove(s.pd_loras_index)
+        if s.pd_loras_index > 0:
+            s.pd_loras_index -= 1
+        return {'FINISHED'}
 
 class RenderDiffusionPanoramaOp(bpy.types.Operator):
     bl_idname = "panorama_diffusion.render"
@@ -102,7 +148,21 @@ class PanoramaDiffusionPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
+        # Model
         layout.prop(context.scene, "pd_model_file")
+
+        # LoRAs
+        lora_row = layout.row()
+        label_col = lora_row.column()
+        label_col.label(text="LoRAs:")
+        lora_settings_col = lora_row.column()
+        lora_settings_col.template_list("LoraList", "", context.scene, "pd_loras", context.scene, "pd_loras_index")
+        row = lora_settings_col.row()
+        col1 = row.column()
+        col2 = row.column(align=True)
+        col1.operator(LoraAddOp.bl_idname, text="Add", icon="ADD")
+        col2.operator(LoraRemoveOp.bl_idname, text="Remove", icon="REMOVE")
+
         layout.operator("panorama_diffusion.init", text="Load models", icon="LIBRARY_DATA_DIRECT")
 
         layout.prop(context.scene, "pd_prompt")
@@ -116,20 +176,31 @@ class PanoramaDiffusionPanel(bpy.types.Panel):
 # https://wilkinson.graphics/blender-icons/
 
 def register():
+
+    bpy.utils.register_class(LoraAddOp)
+    bpy.utils.register_class(LoraRemoveOp)
+    bpy.utils.register_class(RenderDiffusionPanoramaOp)
+    bpy.utils.register_class(InitDiffusionPanoramaOp)
+    bpy.utils.register_class(PanoramaDiffusionPanel)
+    bpy.utils.register_class(LoRAInfo)
+    bpy.utils.register_class(LoraList)
+
     sdxl.start()
     bpy.types.Scene.pd_seed = bpy.props.IntProperty(name="Seed")
     bpy.types.Scene.pd_prompt = bpy.props.StringProperty(name="Prompt")
     bpy.types.Scene.pd_model_file = bpy.props.StringProperty(subtype="FILE_PATH", name="Model file")
     bpy.types.Scene.pd_depth_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Depth texture file")
     bpy.types.Scene.pd_output_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Output texture file")
-    bpy.types.Scene.pd_render_cam = bpy.props.PointerProperty(type=bpy.types.Object)
-
-    bpy.utils.register_class(RenderDiffusionPanoramaOp)
-    bpy.utils.register_class(InitDiffusionPanoramaOp)
-    bpy.utils.register_class(PanoramaDiffusionPanel)
+    bpy.types.Scene.pd_render_cam = bpy.props.PointerProperty(type=bpy.types.Object, name="Render cam")
+    bpy.types.Scene.pd_loras = bpy.props.CollectionProperty(type=LoRAInfo, name="LoRAs")
+    bpy.types.Scene.pd_loras_index = bpy.props.IntProperty(name="LoRAs Index")
 
 def unregister():
     sdxl.stop()
+    bpy.utils.unregister_class(LoraList)
+    bpy.utils.unregister_class(LoRAInfo)
     bpy.utils.unregister_class(PanoramaDiffusionPanel)
     bpy.utils.unregister_class(InitDiffusionPanoramaOp)
     bpy.utils.unregister_class(RenderDiffusionPanoramaOp)
+    bpy.utils.unregister_class(LoraAddOp)
+    bpy.utils.unregister_class(LoraRemoveOp)
