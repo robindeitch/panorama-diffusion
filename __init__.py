@@ -90,11 +90,11 @@ class RenderDiffusionPanoramaOp(bpy.types.Operator):
         # Setup prompt
         output_image_file = clean_path(context.scene.pd_output_texture_file)
         prompt = context.scene.pd_prompt.as_string()
-        negative_prompt = "bad quality, jpeg artifacts"
+        negative_prompt = context.scene.pd_prompt_neg.as_string()
         seed = context.scene.pd_seed
         steps = 15
         prompt_guidance=7.5
-        depth_image_influence = 0.85
+        depth_image_influence = context.scene.pd_depth_image_influence
         lora_overall_influence = 1.0
         depth_image_file = clean_path(context.scene.pd_depth_texture_file)
 
@@ -179,10 +179,12 @@ class PanoramaDiffusionPanel(bpy.types.Panel):
         layout.operator("panorama_diffusion.init", text="Load models", icon="LIBRARY_DATA_DIRECT")
 
         layout.prop(context.scene, "pd_prompt")
+        layout.prop(context.scene, "pd_prompt_neg")
         layout.prop(context.scene, "pd_depth_texture_file")
         layout.prop(context.scene, "pd_output_texture_file")
         layout.prop(context.scene, "pd_render_cam")
         layout.prop(context.scene, "pd_seed")
+        layout.prop(context.scene, "pd_depth_image_influence")
         layout.operator("panorama_diffusion.render", text="Render", icon="RENDER_RESULT")
 
 # https://docs.blender.org/api/current/bpy.props.html
@@ -201,8 +203,10 @@ def register():
     sdxl.start()
     bpy.types.Scene.pd_seed = bpy.props.IntProperty(name="Seed")
     bpy.types.Scene.pd_prompt = bpy.props.PointerProperty(type=bpy.types.Text, name="Prompt")
+    bpy.types.Scene.pd_prompt_neg = bpy.props.PointerProperty(type=bpy.types.Text, name="Neg Prompt")
     bpy.types.Scene.pd_model_file = bpy.props.StringProperty(subtype="FILE_PATH", name="Model file")
     bpy.types.Scene.pd_depth_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Depth texture file")
+    bpy.types.Scene.pd_depth_image_influence = bpy.props.FloatProperty(name="Depth Influence")
     bpy.types.Scene.pd_output_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Output texture file")
     bpy.types.Scene.pd_render_cam = bpy.props.PointerProperty(type=bpy.types.Object, name="Render cam")
     bpy.types.Scene.pd_loras = bpy.props.CollectionProperty(type=LoRAInfo, name="LoRAs")
