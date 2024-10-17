@@ -92,10 +92,10 @@ class RenderDiffusionPanoramaOp(bpy.types.Operator):
         prompt = context.scene.pd_prompt.as_string()
         negative_prompt = context.scene.pd_prompt_neg.as_string()
         seed = context.scene.pd_seed
-        steps = 15
-        prompt_guidance=7.5
+        steps = context.scene.pd_steps
+        prompt_guidance=context.scene.pd_prompt_guidance
         depth_image_influence = context.scene.pd_depth_image_influence
-        lora_overall_influence = 1.0
+        lora_overall_influence = context.scene.pd_lora_overall_influence
         depth_image_file = clean_path(context.scene.pd_depth_texture_file)
 
         # Render from the correct camera
@@ -184,7 +184,10 @@ class PanoramaDiffusionPanel(bpy.types.Panel):
         layout.prop(context.scene, "pd_output_texture_file")
         layout.prop(context.scene, "pd_render_cam")
         layout.prop(context.scene, "pd_seed")
+        layout.prop(context.scene, "pd_steps")
+        layout.prop(context.scene, "pd_prompt_guidance")
         layout.prop(context.scene, "pd_depth_image_influence")
+        layout.prop(context.scene, "pd_lora_overall_influence")
         layout.operator("panorama_diffusion.render", text="Render", icon="RENDER_RESULT")
 
 # https://docs.blender.org/api/current/bpy.props.html
@@ -201,16 +204,19 @@ def register():
     bpy.utils.register_class(LoraList)
 
     sdxl.start()
-    bpy.types.Scene.pd_seed = bpy.props.IntProperty(name="Seed")
+    bpy.types.Scene.pd_seed = bpy.props.IntProperty(name="Seed", default=1337)
     bpy.types.Scene.pd_prompt = bpy.props.PointerProperty(type=bpy.types.Text, name="Prompt")
     bpy.types.Scene.pd_prompt_neg = bpy.props.PointerProperty(type=bpy.types.Text, name="Neg Prompt")
+    bpy.types.Scene.pd_prompt_guidance = bpy.props.FloatProperty(name="Guidance", default=7.5, min=0, max=25)
     bpy.types.Scene.pd_model_file = bpy.props.StringProperty(subtype="FILE_PATH", name="Model file")
     bpy.types.Scene.pd_depth_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Depth texture file")
-    bpy.types.Scene.pd_depth_image_influence = bpy.props.FloatProperty(name="Depth Influence")
+    bpy.types.Scene.pd_depth_image_influence = bpy.props.FloatProperty(name="Depth Influence", default=0.75, min=0, max=2)
     bpy.types.Scene.pd_output_texture_file  = bpy.props.StringProperty(subtype="FILE_PATH", name="Output texture file")
     bpy.types.Scene.pd_render_cam = bpy.props.PointerProperty(type=bpy.types.Object, name="Render cam")
+    bpy.types.Scene.pd_steps = bpy.props.IntProperty(name="Steps", default=10, min=1, max=25)
     bpy.types.Scene.pd_loras = bpy.props.CollectionProperty(type=LoRAInfo, name="LoRAs")
     bpy.types.Scene.pd_loras_index = bpy.props.IntProperty(name="LoRAs Index")
+    bpy.types.Scene.pd_lora_overall_influence = bpy.props.FloatProperty(name="LoRA influence", default=1, min=0, max=2)
 
 def unregister():
     sdxl.stop()
